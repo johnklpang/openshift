@@ -1,147 +1,131 @@
 # Design Guide
 
-Lab design for a **single-node Red Hat OpenShift** environment on a personal laptop with **16 GB RAM**, plus a tiny smoke-test application.
+Lab design for a **1 master + 3 worker** OpenShift environment. Vagrant creates the VirtualBox VMs and prepares them for a later OpenShift install.
 
 ## 1. Purpose
 
 This lab exists to:
 
-- Learn OpenShift Container Platform (OCP) on one machine
-- Practice `oc`, Routes, Deployments, health probes, and image builds
-- Validate that the cluster can schedule and expose a real application
+- Spin up a repeatable multi-node topology with Vagrant
+- Prepare hostnames, DNS, load balancing, kernel, and firewall for OpenShift UPI
+- Keep a tiny test app ready to deploy after the cluster exists
 
-It is **not** a production, HA, or performance environment.
+It is **not** a production or HA control plane. One master is a single point of failure.
 
 ## 2. Constraints
 
 | Constraint | Impact |
 |---|---|
-| 16 GB host RAM | One node only; leave ~5 GB for the host OS |
-| Personal laptop | Ephemeral cluster; no shared multi-user tenancy |
-| VirtualBox installed | Do **not** nest OpenShift inside a VirtualBox VM |
-| Lab / learning | Monitoring and extra Operators stay off |
+| Personal laptop, often 16 GB RAM | Vagrant can **create and prepare** 4–5 VMs. A real OpenShift 4 install of 1+3 does **not** fit in 16 GB |
+| VirtualBox + Vagrant | Native hypervisor for this path. Do not nest CRC inside these VMs |
+| Lab / learning | No HA masters, no production storage, no extra Operators |
 
-**Minimum topology:** 1 virtual machine, 1 OpenShift node (control plane + worker combined).
+Two profiles:
 
-A 3-node IPI/UPI cluster (bootstrap + master + worker) does not fit in 16 GB.
+| Profile | Host RAM needed | What you get |
+|---|---|---|
+| `prep` (default) | 16 GB | VMs boot; packages, DNS, HAProxy, sysctl applied. Too small to install OCP |
+| `install` | 32 GB or more | Sizes closer to a lab install (still below official Red Hat minimums) |
 
-## 3. Chosen platform
+Official OpenShift 4 minimums are **16 GB per control-plane node** and **8 GB per worker**. A 1+3 install at those sizes needs about 40 GB for the VMs plus the host OS.
 
-**Red Hat OpenShift Local** (`crc`, formerly CodeReady Containers) is the supported laptop distribution of OCP.
+On a 16 GB laptop, use this Vagrant lab to practice node prep. To **run** OpenShift on that laptop, use the CRC single-node path in the [deployment guide](deployment-guide.md#appendix-a-crc-on-a-16-gb-laptop).
+
+## 3. Topology
 
 ```
-┌─────────────────────────────────────────────┐
-│ Host OS (Windows / macOS / Linux)  ~5 GB    │
-│                                             │
-│   Native hypervisor                         │
-│   (Hyper-V / HyperKit-vfkit / KVM)          │
-│                                             │
-│   ┌─────────────────────────────────────┐   │
-│   │ CRC VM  4 vCPU / 10.5 GB / 35 GB    │   │
-│   │                                     │   │
-│   │  Single OpenShift node              │   │
-│   │  api.crc.testing                    │   │
-│   │  *.apps-crc.testing                 │   │
-│   │                                     │   │
-│   │  namespace lab-hello                │   │
-│   │    Deployment/Service/Route         │   │
-│   │    lab-hello app (64–128 Mi)        │   │
-│   └─────────────────────────────────────┘   │
-└─────────────────────────────────────────────┘
+Host (VirtualBox + Vagrant)
+ │
+ ├── helper   192.168.56.9    DNS, HAProxy, HTTP, bastion   (optional, default on)
+ ├── master   192.168.56.10   control plane (1)
+ ├── worker1  192.168.56.11   compute
+ ├── worker2  192.168.56.12   compute
+ └── worker3  192.168.56.13   compute
 ```
 
-CRC creates and manages the VM. You do not create that VM in VirtualBox.
+Cluster DNS name: `ocp.lab.local`
 
-### 3.1 Why not VirtualBox for CRC
+| Record | Address | Role |
+|---|---|---|
+| `api.ocp.lab.local` | helper | Kubernetes API VIP (HAProxy :6443) |
+| `api-int.ocp.lab.local` | helper | Internal API / MCS (:6443, :22623) |
+| `*.apps.ocp.lab.local` | helper | Ingress VIP (HAProxy :80/:443) |
+| `master.ocp.lab.local` | 192.168.56.10 | Control plane |
+| `workerN.ocp.lab.local` | 192.168.56.11–13 | Workers |
 
-- Current OpenShift Local **does not support VirtualBox**
-- CRC **does not support nested virtualization**
-- On Windows, Hyper-V and VirtualBox conflict
+The helper is **not** an OpenShift node. OpenShift 4 UPI needs a load balancer and DNS in front of the nodes. The helper is that appliance.
 
-VirtualBox can still host a **separate** RHEL VM running MicroShift if you refuse native hypervisors. That path is a fallback, not the primary design.
+Disable it with `LAB_HELPER=false` if you will supply your own DNS/LB.
 
-### 3.2 Presets
+## 4. Resource budget
 
-| Preset | What you get | Cluster RAM | Use when |
+### 4.1 `prep` profile (16 GB host)
+
+| VM | vCPU | RAM | Disk (box default) |
 |---|---|---|---|
-| `openshift` | Full single-node OCP (console, Operators, Routes) | 10.5 GB | You want real OpenShift |
-| `microshift` | Lightweight Kubernetes + OpenShift subset | 4 GB | Host is swapping or you need headroom |
-| `okd` | Community OpenShift | 10.5 GB | No Red Hat pull secret |
+| helper | 1 | 1 GB | ~20 GB |
+| master | 2 | 2 GB | ~40 GB |
+| worker ×3 | 1 | 1.5 GB | ~30 GB |
+| **VMs total** | 6 | **7.5 GB** | |
+| Host OS | — | ~5–8 GB | |
 
-**Default for this lab:** `openshift`.
+This is enough to `vagrant up` and inspect prepared nodes. It is **not** enough to start `kube-apiserver`, etcd, and OVN.
 
-## 4. Resource budget (16 GB host)
+### 4.2 `install` profile (32 GB+ host)
 
-| Consumer | Allocation |
-|---|---|
-| Host OS + browser + terminal | ~5 GB |
-| CRC VM | 4 vCPU, **10752 MiB**, 35 GB disk |
-| OpenShift system pods | Most of the VM |
-| `lab-hello` test app | 1 replica, 64 Mi request / 128 Mi limit |
+| VM | vCPU | RAM |
+|---|---|---|
+| helper | 2 | 2 GB |
+| master | 4 | 8 GB |
+| worker ×3 | 2 | 6 GB |
+| **VMs total** | 12 | **28 GB** |
 
-Do not set CRC memory to 16384. That starves the host and usually makes the laptop unusable.
+Still below official minimums. Expect a slow cluster if you proceed to install.
 
-If the host swaps after `crc start`, switch preset to `microshift` (see the [deployment guide](deployment-guide.md)).
+## 5. What Vagrant prepares (not what it installs)
 
-## 5. Network and identity
+Each node script (`vagrant/provision/common.sh`) does the following:
 
-| Name | Value |
-|---|---|
-| API | `https://api.crc.testing:6443` |
-| Console | `https://console-openshift-console.apps-crc.testing` |
-| App routes | `https://<route>.apps-crc.testing` |
-| Users | `developer` (apps), `kubeadmin` (admin) |
-| Pull secret | Red Hat Hybrid Cloud Console (required for `openshift` preset) |
+- Sets FQDN and `/etc/hosts`
+- Disables swap (required)
+- Enables chrony / NTP
+- Loads `overlay` and `br_netfilter`
+- Sets `ip_forward` and bridge netfilter sysctls
+- Installs baseline packages (`python3`, `jq`, `bind-utils`, NetworkManager)
+- Opens OpenShift ports in firewalld
+- Writes `/etc/ocp-lab/node.env`
 
-CRC configures host DNS for `*.crc.testing` and `*.apps-crc.testing`. VPN clients often break this.
+The helper also installs:
 
-## 6. Test application design
+- **dnsmasq** — `api`, `api-int`, `*.apps`, node names
+- **HAProxy** — 6443, 22623, 80, 443
+- **httpd** — `/var/www/html/install` for later Ignition or images
 
-The repo ships `app/` — a one-process Flask service used only to prove the platform works.
+OpenShift itself (RHCOS, CRI-O, cluster Operators) is a **later** step. Current OpenShift 4 control-plane nodes are meant to boot **RHCOS/FCOS** with Ignition. These Rocky 9 VMs are the network and OS-prep layer, and a bastion from which you run `openshift-install`.
 
-### 6.1 Responsibilities
-
-- Serve a visible HTML page at `/`
-- Expose `/healthz` (liveness) and `/readyz` (readiness)
-- Expose `/info` JSON (hostname + version) so you can confirm which pod answered
-
-### 6.2 Runtime choices
+## 6. Vagrant design choices
 
 | Choice | Reason |
 |---|---|
-| UBI 9 Python 312 | Red Hat base image; works with CRC internal registry |
-| Port 8080 | OpenShift non-root default |
-| gunicorn, 1 worker | Tiny memory footprint |
-| `runAsNonRoot`, drop all capabilities | Matches restricted SCC |
-| 1 replica | Minimum node / minimum RAM |
+| VirtualBox provider | Matches a personal-laptop lab |
+| `bento/rockylinux-9` | RHEL-compatible, no subscription to boot VMs |
+| Linked clones | Faster `vagrant up`, less disk |
+| Default synced folder off | Avoids Guest Additions / vboxsf failures |
+| Host-only `192.168.56.0/24` | Stable IPs on VirtualBox |
+| NAT + host-only | NAT for `dnf`; host-only for cluster traffic |
 
-### 6.3 OpenShift objects
+## 7. Test application
 
-```
-Namespace lab-hello
-  └── Deployment lab-hello (1 pod)
-        └── Service lab-hello :8080
-              └── Route lab-hello (edge TLS)
-```
+`app/` is unchanged: a Flask smoke test (`/`, `/healthz`, `/readyz`, `/info`) deployed after a cluster exists. See [deployment guide](deployment-guide.md).
 
-Images are built on-cluster with `oc new-app --strategy=docker` so you do not need a public registry.
+## 8. Security (lab only)
 
-## 7. Security (lab only)
-
-- Cluster is bound to the laptop; do not expose CRC ports to the internet
-- Treat `kubeadmin` as break-glass; use `developer` for app work
-- Pull secret stays out of git (see `.gitignore`)
-- App runs as UID 1001, no privileged containers
-
-## 8. What this design explicitly excludes
-
-- Multi-node HA, machine API, bare-metal IPI
-- OpenShift Virtualization / nested VMs
-- Cluster monitoring stack (disabled by default on CRC)
-- Persistent production storage and backup
-- Service Mesh, Pipelines, GitOps Operators (too heavy for 16 GB)
+- Host-only network is local to the laptop
+- `vagrant` / default box credentials are lab-only
+- Pull secrets and SSH keys stay out of git
+- Do not port-forward API or ingress to the internet
 
 ## 9. Related documents
 
-- [Deployment guide](deployment-guide.md) — install CRC and deploy the app
-- [Runbook](runbook.md) — daily ops and failure recovery
+- [Deployment guide](deployment-guide.md) — install Vagrant/VirtualBox and `vagrant up`
+- [Runbook](runbook.md) — start/stop, SSH, common VM failures

@@ -1,0 +1,31 @@
+# Template for a later OpenShift UPI install. Copy to install-config.yaml
+# and fill pullSecret / sshKey. Do not commit secrets.
+#
+# This 1-master topology is a lab only. Production needs 3 control-plane nodes.
+#
+# Official RAM: master 16 GiB, workers 8 GiB. The Vagrant "install" profile
+# uses 8 / 6 GiB so a 32 GB host can boot. Expect a slow or fragile cluster.
+
+apiVersion: v1
+baseDomain: lab.local
+metadata:
+  name: ocp
+compute:
+  - name: worker
+    replicas: 3
+controlPlane:
+  name: master
+  replicas: 1
+networking:
+  clusterNetwork:
+    - cidr: 10.128.0.0/14
+      hostPrefix: 23
+  machineNetwork:
+    - cidr: 192.168.56.0/24
+  networkType: OVNKubernetes
+  serviceNetwork:
+    - 172.30.0.0/16
+platform:
+  none: {}
+pullSecret: '<paste Red Hat pull secret JSON>'
+sshKey: '<paste your ssh public key>'
