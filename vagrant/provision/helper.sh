@@ -7,7 +7,6 @@ HELPER_IP="${2:?helper ip}"
 MASTER_IP="${3:?master ip}"
 WORKER1_IP="${4:?worker1 ip}"
 WORKER2_IP="${5:?worker2 ip}"
-WORKER3_IP="${6:?worker3 ip}"
 
 dnf -y install haproxy dnsmasq httpd
 
@@ -16,7 +15,6 @@ sed -i \
   -e "s/__MASTER_IP__/${MASTER_IP}/g" \
   -e "s/__WORKER1_IP__/${WORKER1_IP}/g" \
   -e "s/__WORKER2_IP__/${WORKER2_IP}/g" \
-  -e "s/__WORKER3_IP__/${WORKER3_IP}/g" \
   /etc/haproxy/haproxy.cfg
 
 install -m 0644 /tmp/dnsmasq.conf /etc/dnsmasq.d/ocp-lab.conf
@@ -26,7 +24,6 @@ sed -i \
   -e "s/__MASTER_IP__/${MASTER_IP}/g" \
   -e "s/__WORKER1_IP__/${WORKER1_IP}/g" \
   -e "s/__WORKER2_IP__/${WORKER2_IP}/g" \
-  -e "s/__WORKER3_IP__/${WORKER3_IP}/g" \
   /etc/dnsmasq.d/ocp-lab.conf
 
 # Keep the system resolver on NAT; only listen on the host-only address.

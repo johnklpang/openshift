@@ -1,6 +1,6 @@
 # Deployment Guide
 
-Create **1 master + 3 worker** VirtualBox VMs with Vagrant and prepare them for OpenShift.
+Create **1 master + 2 worker** VirtualBox VMs with Vagrant and prepare them for OpenShift.
 
 This does **not** install OpenShift. It builds the machines, DNS, and load balancer you need before `openshift-install`.
 
@@ -58,7 +58,7 @@ chmod +x scripts/*.sh
 Equivalent:
 
 ```bash
-# default: prep profile, helper + master + 3 workers
+# default: prep profile, helper + master + 2 workers
 vagrant up
 ```
 
@@ -82,7 +82,7 @@ Bring up one machine:
 ```bash
 vagrant up helper
 vagrant up master
-vagrant up worker1 worker2 worker3
+vagrant up worker1 worker2
 ```
 
 ## 3. Verify the lab is prepared
@@ -131,13 +131,12 @@ Expected inventory (`vagrant/inventory/hosts.ini`):
 | master | 192.168.56.10 | Control plane |
 | worker1 | 192.168.56.11 | Worker |
 | worker2 | 192.168.56.12 | Worker |
-| worker3 | 192.168.56.13 | Worker |
 
 ## 4. What is ready vs what is not
 
 Ready:
 
-- Four (or five) Rocky 9 VMs on the host-only network
+- Three or four Rocky 9 VMs on the host-only network (helper optional)
 - Swap off, forwarding on, OpenShift ports open
 - DNS names for `api`, `api-int`, `*.apps`, and each node
 - HAProxy frontends for API and ingress
@@ -194,7 +193,7 @@ vagrant destroy -f
 
 ## Appendix A — CRC on a 16 GB laptop
 
-If you need a **running** OpenShift API on 16 GB, do not use the 1+3 Vagrant cluster. Use OpenShift Local (single node):
+If you need a **running** OpenShift API on 16 GB, do not use the 1+2 Vagrant cluster. Use OpenShift Local (single node):
 
 ```bash
 crc config set preset openshift

@@ -1,14 +1,14 @@
 # OpenShift laptop lab
 
-Vagrant + VirtualBox lab that spins up **1 master and 3 workers** (plus an optional helper) and **prepares** them for OpenShift.
+Vagrant + VirtualBox lab that spins up **1 master and 2 workers** (plus an optional helper) and **prepares** them for OpenShift.
 
-This does not install OpenShift. On a 16 GB laptop the VMs are sized only for preparation. A real 1+3 OpenShift 4 install needs about 32 GB or more.
+This does not install OpenShift. The default `prep` profile is sized for a **16 GB** laptop. A real OpenShift 4 install of this topology still needs about 32 GB.
 
 ## Documents
 
 | Guide | What it covers |
 |---|---|
-| [Design guide](docs/design-guide.md) | 1+3 topology, helper DNS/LB, `prep` vs `install` RAM |
+| [Design guide](docs/design-guide.md) | 1+2 topology, helper DNS/LB, `prep` vs `install` RAM |
 | [Deployment guide](docs/deployment-guide.md) | Install Vagrant/VirtualBox, `vagrant up`, verify nodes |
 | [Runbook](docs/runbook.md) | Start/stop, SSH, VT-x, network, provision failures |
 
@@ -19,8 +19,7 @@ Host (VirtualBox)
  ├── helper   192.168.56.9     DNS, HAProxy, HTTP bastion
  ├── master   192.168.56.10    control plane
  ├── worker1  192.168.56.11
- ├── worker2  192.168.56.12
- └── worker3  192.168.56.13
+ └── worker2  192.168.56.12
 ```
 
 Domain: `ocp.lab.local` (`api`, `api-int`, `*.apps` point at the helper).

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create the Vagrant VirtualBox VMs (1 master, 3 workers, optional helper).
+# Create the Vagrant VirtualBox VMs (1 master, 2 workers, optional helper).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

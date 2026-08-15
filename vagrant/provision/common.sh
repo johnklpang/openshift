@@ -22,7 +22,6 @@ ${NETWORK}.9 helper.${DOMAIN} helper api.${DOMAIN} api-int.${DOMAIN}
 ${NETWORK}.10 master.${DOMAIN} master
 ${NETWORK}.11 worker1.${DOMAIN} worker1
 ${NETWORK}.12 worker2.${DOMAIN} worker2
-${NETWORK}.13 worker3.${DOMAIN} worker3
 EOF
 fi
 

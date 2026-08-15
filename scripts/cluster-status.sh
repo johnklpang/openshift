@@ -13,7 +13,7 @@ fi
 vagrant status
 echo
 
-for node in helper master worker1 worker2 worker3; do
+for node in helper master worker1 worker2; do
   if vagrant status "${node}" 2>/dev/null | grep -q running; then
     echo "---- ${node} ----"
     vagrant ssh "${node}" -c 'set -e; echo "$(hostname -f) $(hostname -I)"; cat /etc/ocp-lab/node.env; swapon --show || true' || true
