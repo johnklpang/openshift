@@ -1,0 +1,14 @@
+.crc/
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+.env
+*.egg-info/
+.idea/
+.vscode/
+*.log
+pull-secret.txt
+.kube/
+.DS_Store

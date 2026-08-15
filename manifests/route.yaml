@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: lab-hello
+  namespace: lab-hello
+  labels:
+    app: lab-hello
+spec:
+  to:
+    kind: Service
+    name: lab-hello
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
