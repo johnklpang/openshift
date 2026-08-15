@@ -1,3 +1,5 @@
+.vagrant/
+*.box
 .crc/
 *.pyc
 __pycache__/

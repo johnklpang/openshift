@@ -1,181 +1,180 @@
 # Deployment Guide
 
-Step-by-step install of a **minimum-node OpenShift lab** on a 16 GB laptop, then deploy the smoke-test app.
+Create **1 master + 3 worker** VirtualBox VMs with Vagrant and prepare them for OpenShift.
+
+This does **not** install OpenShift. It builds the machines, DNS, and load balancer you need before `openshift-install`.
 
 ## 1. Prerequisites
 
 ### Hardware
 
-- 4 CPU cores, Intel/AMD with `VT-x` or `AMD-V` enabled in BIOS
-- 16 GB RAM
-- 50 GB free disk (35 GB cluster + bundle)
+| Goal | Host RAM | Free disk | CPU |
+|---|---|---|---|
+| Prepare VMs only (`LAB_PROFILE=prep`) | 16 GB | 80 GB | 4 cores, VT-x/AMD-V on |
+| Attempt a lab install later (`LAB_PROFILE=install`) | 32 GB or more | 200 GB | 8 cores preferred |
 
-### Operating system
+Enable virtualization in BIOS. On Windows, **do not enable Hyper-V** if you want VirtualBox to run these VMs. Hyper-V and VirtualBox conflict.
 
-- Windows 10/11 **Pro** (Home is not supported)
-- macOS 13 or later
-- RHEL, Fedora, or recent Ubuntu/Debian
+### Software
 
-### Accounts and tools
+- [VirtualBox](https://www.virtualbox.org/) 7.x (include the Extension Pack if you use it)
+- [Vagrant](https://developer.hashicorp.com/vagrant/install) 2.4+
+- Git, and this repository
+- Optional later: Red Hat pull secret from [Hybrid Cloud Console](https://console.redhat.com/openshift/create/local)
 
-- Free [Red Hat Developer](https://developers.redhat.com/) account
-- [OpenShift Local download + pull secret](https://console.redhat.com/openshift/create/local)
-- Git, a terminal, and a browser
-- This repository cloned to the laptop
-
-### Virtualization
-
-Enable the **native** hypervisor. Do not install CRC inside VirtualBox.
-
-| Host | Hypervisor |
-|---|---|
-| Windows | Hyper-V + Virtual Machine Platform |
-| Linux | KVM + libvirt + NetworkManager |
-| macOS | Built-in virtualization (vfkit) |
-
-On Windows, stop VirtualBox VMs and prefer Hyper-V. Reboot after enabling Hyper-V.
-
-Disconnect VPN before `crc start`.
-
-## 2. Install OpenShift Local (`crc`)
-
-### Windows / macOS
-
-1. Run the guided installer from the Hybrid Cloud Console download.
-2. Install to a local disk (`C:\` on Windows, not a network drive).
-3. Reboot if the installer enabled Hyper-V.
-4. Confirm:
+Check:
 
 ```bash
-crc version
+VBoxManage --version
+vagrant version
 ```
 
-### Linux
+### Windows notes
+
+- Use PowerShell or Git Bash from the repo root
+- Disable Hyper-V / Windows Hypervisor Platform if `vagrant up` fails with VT-x locked
+- Allow the VirtualBox Host-Only adapter (`192.168.56.0/24`)
+
+### Linux notes
 
 ```bash
-# Fedora / RHEL
-sudo dnf install -y libvirt NetworkManager
-
+# Fedora / RHEL family
+sudo dnf install -y vagrant VirtualBox
 # Ubuntu / Debian
-sudo apt install -y qemu-kvm libvirt-daemon libvirt-daemon-system network-manager
-
-cd ~/Downloads
-tar xvf crc-linux-amd64.tar.xz
-mkdir -p ~/bin
-cp crc-linux-*-amd64/crc ~/bin/
-echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-crc version
+sudo apt install -y vagrant virtualbox
 ```
 
-Do not run `crc` as root or Administrator. Use a normal user that can sudo / elevate.
+Add your user to the `vboxusers` group and log out.
 
-## 3. Configure the minimum cluster
+## 2. Create the VMs
 
-Save the pull secret as `~/pull-secret.txt` (do not commit it).
+From the repository root:
 
 ```bash
-crc config set preset openshift
-crc config set cpus 4
-crc config set memory 10752
-crc config set disk-size 35
-crc config set pull-secret-file ~/pull-secret.txt
-crc config view
+chmod +x scripts/*.sh
+./scripts/cluster-up.sh
 ```
 
-`10752` MiB is the OpenShift preset minimum. Leave the rest of the 16 GB for the host.
-
-## 4. Create and start the cluster
+Equivalent:
 
 ```bash
-crc setup
-crc start
+# default: prep profile, helper + master + 3 workers
+vagrant up
 ```
 
-First start downloads the bundle and typically takes 15–30 minutes.
+First run downloads the `bento/rockylinux-9` box (several GB) and can take 20–40 minutes.
 
-Success looks like:
-
-- `CRC VM: Running`
-- `OpenShift: Running`
-- Console URL printed
-- `kubeadmin` and `developer` passwords printed
-
-Store those passwords. Retrieve later with:
+### Profiles
 
 ```bash
-crc console --credentials
+# 16 GB laptop — prepare only
+LAB_PROFILE=prep vagrant up
+
+# 32 GB+ host — larger VMs for a later install attempt
+LAB_PROFILE=install vagrant up
+
+# Cluster nodes only (you already have DNS/LB)
+LAB_HELPER=false vagrant up
 ```
 
-## 5. Log in
+Bring up one machine:
 
 ```bash
-eval $(crc oc-env)
-oc login -u developer https://api.crc.testing:6443
-oc whoami
-oc get nodes
+vagrant up helper
+vagrant up master
+vagrant up worker1 worker2 worker3
 ```
 
-You should see **one** Ready node.
-
-Open the console:
+## 3. Verify the lab is prepared
 
 ```bash
-crc console
+./scripts/cluster-status.sh
+vagrant status
 ```
 
-Use `developer` for application work. Use `kubeadmin` only for cluster admin tasks.
-
-## 6. Deploy the test app
-
-From the repository root, after `oc` login:
+SSH:
 
 ```bash
-chmod +x scripts/deploy.sh scripts/verify.sh
+vagrant ssh helper
+vagrant ssh master
+vagrant ssh worker1
+```
+
+On any node:
+
+```bash
+hostname -f
+cat /etc/ocp-lab/node.env
+swapon --show          # must be empty
+sysctl net.ipv4.ip_forward
+getent hosts api.ocp.lab.local master.ocp.lab.local worker1.ocp.lab.local
+```
+
+On the helper:
+
+```bash
+systemctl is-active haproxy dnsmasq httpd
+ss -lnt | grep -E '80|443|6443|22623'
+```
+
+From the host (if `192.168.56.9` is reachable):
+
+```bash
+ping -c 1 192.168.56.10
+```
+
+Expected inventory (`vagrant/inventory/hosts.ini`):
+
+| Name | IP | Role |
+|---|---|---|
+| helper | 192.168.56.9 | DNS / HAProxy / bastion |
+| master | 192.168.56.10 | Control plane |
+| worker1 | 192.168.56.11 | Worker |
+| worker2 | 192.168.56.12 | Worker |
+| worker3 | 192.168.56.13 | Worker |
+
+## 4. What is ready vs what is not
+
+Ready:
+
+- Four (or five) Rocky 9 VMs on the host-only network
+- Swap off, forwarding on, OpenShift ports open
+- DNS names for `api`, `api-int`, `*.apps`, and each node
+- HAProxy frontends for API and ingress
+- HTTP tree `/var/www/html/install` on the helper
+
+Not done:
+
+- No `oc` cluster, no console, no CRI-O cluster
+- Master is not yet a Kubernetes control plane
+- The test app cannot be deployed until OpenShift (or another Kubernetes) is installed
+
+## 5. Next: OpenShift install (after you have RAM)
+
+Use the helper as the bastion.
+
+1. Copy a pull secret to the helper (never commit it).
+2. Copy `vagrant/install-config.yaml.template` and fill `pullSecret` and `sshKey`.
+3. Download `openshift-install` and `oc` for your OCP/OKD version onto the helper.
+4. Generate Ignition configs and serve them from `http://192.168.56.9/install/`.
+5. Reboot nodes into **RHCOS/FCOS** (normal OCP 4 UPI) **or** follow the current Red Hat UPI document for your version.
+
+A 1-master cluster is unsupported for production. Prefer 3 masters when you have the hardware.
+
+On a 16 GB laptop, stop here and use CRC if you need a working API today (appendix A).
+
+## 6. Deploy the test app (only after a cluster exists)
+
+```bash
+eval $(crc oc-env)    # or use oc from the helper
+oc login -u kubeadmin https://api.ocp.lab.local:6443
 ./scripts/deploy.sh
-```
-
-What the script does:
-
-1. Creates project `lab-hello` if needed
-2. Builds `app/` on-cluster with a Docker strategy BuildConfig
-3. Applies Service, Route, and Deployment
-4. Waits for the rollout
-
-Manual equivalent:
-
-```bash
-eval $(crc oc-env)
-oc login -u developer https://api.crc.testing:6443
-oc new-project lab-hello
-oc new-app --name=lab-hello --strategy=docker ./app
-oc logs -f bc/lab-hello
-oc expose svc/lab-hello
-oc rollout status deploy/lab-hello
-```
-
-If you already applied `manifests/route.yaml`, skip `oc expose`.
-
-## 7. Verify
-
-```bash
 ./scripts/verify.sh
 ```
 
-Or by hand:
+On a Vagrant UPI cluster, create the project and apply `manifests/` the same way. Change the Route hostname if your apps domain is `*.apps.ocp.lab.local`.
 
-```bash
-oc get pods,svc,route -n lab-hello
-HOST=$(oc get route lab-hello -n lab-hello -o jsonpath='{.spec.host}')
-curl -k "https://${HOST}/healthz"
-curl -k "https://${HOST}/info"
-```
-
-Open `https://<host>` in a browser. You should see **OpenShift lab test app is running.**
-
-## 8. Optional: run app unit tests on the laptop
-
-Does not require the cluster.
+App unit tests (no cluster):
 
 ```bash
 cd app
@@ -185,39 +184,27 @@ pip install -r requirements.txt pytest
 pytest
 ```
 
-## 9. If 10.5 GB is too heavy
+## 7. Tear down
 
 ```bash
-crc delete -f
-crc config set preset microshift
-crc config set cpus 2
-crc config set memory 4096
+./scripts/cluster-down.sh          # vagrant halt — keep disks
+./scripts/cluster-down.sh destroy  # delete all VMs
+vagrant destroy -f
+```
+
+## Appendix A — CRC on a 16 GB laptop
+
+If you need a **running** OpenShift API on 16 GB, do not use the 1+3 Vagrant cluster. Use OpenShift Local (single node):
+
+```bash
+crc config set preset openshift
+crc config set cpus 4
+crc config set memory 10752
 crc setup
 crc start
+eval $(crc oc-env)
+oc login -u developer https://api.crc.testing:6443
+./scripts/deploy.sh
 ```
 
-MicroShift is a subset of OpenShift (no full web console). The same `oc` deploy path still works for the test app; skip `crc console`.
-
-## 10. Fallback: one VirtualBox VM + MicroShift
-
-Only if you cannot use CRC on the host.
-
-1. Create **one** RHEL 9 VM: 4 vCPU, **8 GB RAM**, 50 GB disk, NAT or bridged. Nested VT-x off.
-2. Register with a Developer subscription.
-3. Enable MicroShift repos, install `microshift` and `openshift-clients`, start the service.
-4. Copy `/var/lib/microshift/resources/kubeadmin/kubeconfig` to `~/.kube/config`.
-5. Deploy with `oc` as in section 6 (create a Route or NodePort; MicroShift Route support depends on how ingress is installed).
-
-See [MicroShift getting started](https://github.com/openshift/microshift/blob/main/docs/user/getting_started.md).
-
-## 11. Tear down
-
-```bash
-oc delete project lab-hello
-crc stop          # keep the VM for next session
-crc delete -f     # destroy the cluster VM
-```
-
-## 12. Next
-
-Use the [runbook](runbook.md) for daily start/stop, health checks, and common failures.
+Do not run CRC inside a Vagrant VM (nested virtualization is unsupported).

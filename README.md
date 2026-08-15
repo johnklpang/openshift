@@ -1,54 +1,55 @@
 # OpenShift laptop lab
 
-Single-node **Red Hat OpenShift** lab for a personal laptop with **16 GB RAM**, plus a tiny app used to prove the cluster works.
+Vagrant + VirtualBox lab that spins up **1 master and 3 workers** (plus an optional helper) and **prepares** them for OpenShift.
 
-This is not a multi-node or production install. Do not nest OpenShift inside VirtualBox.
+This does not install OpenShift. On a 16 GB laptop the VMs are sized only for preparation. A real 1+3 OpenShift 4 install needs about 32 GB or more.
 
 ## Documents
 
 | Guide | What it covers |
 |---|---|
-| [Design guide](docs/design-guide.md) | Architecture, 16 GB resource budget, why CRC, app design |
-| [Deployment guide](docs/deployment-guide.md) | Install CRC, start the cluster, deploy the test app |
-| [Runbook](docs/runbook.md) | Daily start/stop, health checks, incident procedures |
+| [Design guide](docs/design-guide.md) | 1+3 topology, helper DNS/LB, `prep` vs `install` RAM |
+| [Deployment guide](docs/deployment-guide.md) | Install Vagrant/VirtualBox, `vagrant up`, verify nodes |
+| [Runbook](docs/runbook.md) | Start/stop, SSH, VT-x, network, provision failures |
 
-## Minimum node
-
-One CRC virtual machine. One OpenShift node. One replica of the test app.
+## Topology
 
 ```
-Host (16 GB)
- └── CRC VM  (4 vCPU / 10.5 GB)   native hypervisor, not VirtualBox
-      └── OpenShift single node
-           └── lab-hello  (Flask, 64–128 Mi)
+Host (VirtualBox)
+ ├── helper   192.168.56.9     DNS, HAProxy, HTTP bastion
+ ├── master   192.168.56.10    control plane
+ ├── worker1  192.168.56.11
+ ├── worker2  192.168.56.12
+ └── worker3  192.168.56.13
 ```
+
+Domain: `ocp.lab.local` (`api`, `api-int`, `*.apps` point at the helper).
 
 ## Quick start
 
-1. Download [OpenShift Local](https://console.redhat.com/openshift/create/local) and a pull secret.
-2. Follow the [deployment guide](docs/deployment-guide.md).
-3. Deploy and verify the test app:
+```bash
+# VirtualBox and Vagrant must already be installed
+./scripts/cluster-up.sh
+./scripts/cluster-status.sh
+vagrant ssh master
+```
+
+Larger VMs (32 GB+ host) when you are ready to attempt an install:
 
 ```bash
-crc start
-eval $(crc oc-env)
-oc login -u developer https://api.crc.testing:6443
-./scripts/deploy.sh
-./scripts/verify.sh
+LAB_PROFILE=install vagrant up
+```
+
+Stop or delete:
+
+```bash
+./scripts/cluster-down.sh
+./scripts/cluster-down.sh destroy
 ```
 
 ## Test app
 
-`app/` is a Flask service with:
-
-- `/` HTML status page
-- `/healthz` liveness
-- `/readyz` readiness
-- `/info` JSON (hostname, version)
-
-OpenShift objects live in `manifests/`.
-
-Unit tests (no cluster required):
+`app/` is a Flask smoke test (`/`, `/healthz`, `/readyz`, `/info`) for **after** a cluster exists. Manifests are in `manifests/`.
 
 ```bash
 cd app
@@ -58,13 +59,8 @@ pip install -r requirements.txt pytest
 pytest
 ```
 
-## Daily commands
+## 16 GB laptop
 
-```bash
-crc status
-crc stop
-crc start
-crc delete -f
-```
+Use `LAB_PROFILE=prep` (default). Do not expect `oc login` to work against these VMs.
 
-If the 10.5 GB OpenShift preset makes the laptop swap, switch to MicroShift as described in the deployment guide.
+To run OpenShift on 16 GB, use OpenShift Local (CRC) as described in the [deployment guide appendix](docs/deployment-guide.md#appendix-a-crc-on-a-16-gb-laptop). Do not nest CRC inside a Vagrant VM.
