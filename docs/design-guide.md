@@ -1,6 +1,6 @@
 # Design Guide
 
-Lab design for a **1 master + 3 worker** OpenShift environment. Vagrant creates the VirtualBox VMs and prepares them for a later OpenShift install.
+Lab design for a **1 master + 2 worker** OpenShift environment on a **16 GB** laptop. Vagrant creates the VirtualBox VMs and prepares them for a later OpenShift install.
 
 ## 1. Purpose
 
@@ -16,7 +16,7 @@ It is **not** a production or HA control plane. One master is a single point of 
 
 | Constraint | Impact |
 |---|---|
-| Personal laptop, often 16 GB RAM | Vagrant can **create and prepare** 4–5 VMs. A real OpenShift 4 install of 1+3 does **not** fit in 16 GB |
+| Personal laptop, 16 GB RAM | Vagrant can **create and prepare** helper + master + 2 workers. A real OpenShift 4 install of 1+2 does **not** fit in 16 GB |
 | VirtualBox + Vagrant | Native hypervisor for this path. Do not nest CRC inside these VMs |
 | Lab / learning | No HA masters, no production storage, no extra Operators |
 
@@ -27,7 +27,7 @@ Two profiles:
 | `prep` (default) | 16 GB | VMs boot; packages, DNS, HAProxy, sysctl applied. Too small to install OCP |
 | `install` | 32 GB or more | Sizes closer to a lab install (still below official Red Hat minimums) |
 
-Official OpenShift 4 minimums are **16 GB per control-plane node** and **8 GB per worker**. A 1+3 install at those sizes needs about 40 GB for the VMs plus the host OS.
+Official OpenShift 4 minimums are **16 GB per control-plane node** and **8 GB per worker**. A 1+2 install at those sizes needs about 32 GB for the VMs plus the host OS.
 
 On a 16 GB laptop, use this Vagrant lab to practice node prep. To **run** OpenShift on that laptop, use the CRC single-node path in the [deployment guide](deployment-guide.md#appendix-a-crc-on-a-16-gb-laptop).
 
@@ -39,8 +39,7 @@ Host (VirtualBox + Vagrant)
  ├── helper   192.168.56.9    DNS, HAProxy, HTTP, bastion   (optional, default on)
  ├── master   192.168.56.10   control plane (1)
  ├── worker1  192.168.56.11   compute
- ├── worker2  192.168.56.12   compute
- └── worker3  192.168.56.13   compute
+ └── worker2  192.168.56.12   compute
 ```
 
 Cluster DNS name: `ocp.lab.local`
@@ -51,7 +50,7 @@ Cluster DNS name: `ocp.lab.local`
 | `api-int.ocp.lab.local` | helper | Internal API / MCS (:6443, :22623) |
 | `*.apps.ocp.lab.local` | helper | Ingress VIP (HAProxy :80/:443) |
 | `master.ocp.lab.local` | 192.168.56.10 | Control plane |
-| `workerN.ocp.lab.local` | 192.168.56.11–13 | Workers |
+| `workerN.ocp.lab.local` | 192.168.56.11–12 | Workers |
 
 The helper is **not** an OpenShift node. OpenShift 4 UPI needs a load balancer and DNS in front of the nodes. The helper is that appliance.
 
@@ -64,9 +63,9 @@ Disable it with `LAB_HELPER=false` if you will supply your own DNS/LB.
 | VM | vCPU | RAM | Disk (box default) |
 |---|---|---|---|
 | helper | 1 | 1 GB | ~20 GB |
-| master | 2 | 2 GB | ~40 GB |
-| worker ×3 | 1 | 1.5 GB | ~30 GB |
-| **VMs total** | 6 | **7.5 GB** | |
+| master | 2 | 2.5 GB | ~40 GB |
+| worker ×2 | 1 | 2 GB | ~30 GB |
+| **VMs total** | 5 | **7.5 GB** | |
 | Host OS | — | ~5–8 GB | |
 
 This is enough to `vagrant up` and inspect prepared nodes. It is **not** enough to start `kube-apiserver`, etcd, and OVN.
@@ -77,8 +76,8 @@ This is enough to `vagrant up` and inspect prepared nodes. It is **not** enough 
 |---|---|---|
 | helper | 2 | 2 GB |
 | master | 4 | 8 GB |
-| worker ×3 | 2 | 6 GB |
-| **VMs total** | 12 | **28 GB** |
+| worker ×2 | 2 | 6 GB |
+| **VMs total** | 10 | **22 GB** |
 
 Still below official minimums. Expect a slow cluster if you proceed to install.
 

@@ -1,6 +1,6 @@
 # Runbook
 
-Operations for the Vagrant VirtualBox lab: **helper + 1 master + 3 workers**.
+Operations for the Vagrant VirtualBox lab: **helper + 1 master + 2 workers**.
 
 ## 1. Roles
 
@@ -9,7 +9,7 @@ Operations for the Vagrant VirtualBox lab: **helper + 1 master + 3 workers**.
 | Host operator | laptop user | `vagrant up\|halt\|destroy` |
 | Bastion | `vagrant ssh helper` | DNS, HAProxy, future `openshift-install` |
 | Master | `vagrant ssh master` | Future control plane |
-| Worker | `vagrant ssh worker1` (2, 3) | Future compute |
+| Worker | `vagrant ssh worker1` or `worker2` | Future compute |
 
 Default guest user: `vagrant` (sudo).
 
@@ -33,7 +33,7 @@ If the VMs already exist, `vagrant up` boots them and skips provision unless you
 # or: vagrant halt
 ```
 
-Always halt when you are done. Five VMs will keep several GB of RAM reserved.
+Always halt when you are done. Four VMs still reserve about 7.5 GB.
 
 ### Status
 
@@ -61,7 +61,7 @@ ssh vagrant@192.168.56.10
 
 | Check | Command | Expected |
 |---|---|---|
-| VM power | `vagrant status` | helper, master, worker1–3 `running` |
+| VM power | `vagrant status` | helper, master, worker1–2 `running` |
 | Hostname | `vagrant ssh master -c 'hostname -f'` | `master.ocp.lab.local` |
 | Swap | `vagrant ssh master -c 'swapon --show'` | empty |
 | Marker | `cat /etc/ocp-lab/node.env` | `ROLE=master` (or worker/helper) |
@@ -109,7 +109,7 @@ The Vagrantfile disables `/vagrant`. Ignore leftover Guest Additions warnings if
 You are on the 16 GB `prep` profile and still overcommitted.
 
 ```bash
-vagrant halt worker3 worker2
+vagrant halt worker2
 ```
 
 Keep helper + master + one worker for inspection. Do **not** switch to `LAB_PROFILE=install` on 16 GB.
@@ -178,7 +178,6 @@ VBoxManage list runningvms
 VBoxManage controlvm ocp-master poweroff
 VBoxManage controlvm ocp-worker1 poweroff
 VBoxManage controlvm ocp-worker2 poweroff
-VBoxManage controlvm ocp-worker3 poweroff
 VBoxManage controlvm ocp-helper poweroff
 ```
 

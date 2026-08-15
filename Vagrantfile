@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# OpenShift lab VMs: 1 master + 3 workers on VirtualBox.
+# OpenShift lab VMs: 1 master + 2 workers on VirtualBox.
 # Optional helper VM provides DNS, HAProxy, and a bastion for later UPI install.
 #
 #   vagrant up
@@ -18,8 +18,8 @@ NETWORK = ENV.fetch("LAB_NETWORK", "192.168.56")
 PROFILES = {
   "prep" => {
     "helper" => { cpus: 1, memory: 1024, disk: 20 },
-    "master" => { cpus: 2, memory: 2048, disk: 40 },
-    "worker" => { cpus: 1, memory: 1536, disk: 30 }
+    "master" => { cpus: 2, memory: 2560, disk: 40 },
+    "worker" => { cpus: 1, memory: 2048, disk: 30 }
   },
   "install" => {
     "helper" => { cpus: 2, memory: 2048, disk: 40 },
@@ -35,8 +35,7 @@ HELPER_IP = "#{NETWORK}.9"
 MASTER_IP = "#{NETWORK}.10"
 WORKERS = {
   "worker1" => "#{NETWORK}.11",
-  "worker2" => "#{NETWORK}.12",
-  "worker3" => "#{NETWORK}.13"
+  "worker2" => "#{NETWORK}.12"
 }.freeze
 
 def provision_common(node, hostname, ip, role)

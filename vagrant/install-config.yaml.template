@@ -4,7 +4,7 @@
 # This 1-master topology is a lab only. Production needs 3 control-plane nodes.
 #
 # Official RAM: master 16 GiB, workers 8 GiB. The Vagrant "install" profile
-# uses 8 / 6 GiB so a 32 GB host can boot. Expect a slow or fragile cluster.
+# uses 8 / 6 GiB so a 32 GB host can boot. Do not use this profile on 16 GB.
 
 apiVersion: v1
 baseDomain: lab.local
@@ -12,7 +12,7 @@ metadata:
   name: ocp
 compute:
   - name: worker
-    replicas: 3
+    replicas: 2
 controlPlane:
   name: master
   replicas: 1
